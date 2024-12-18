@@ -13,27 +13,16 @@ import { format, formatDistance } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 
-async function FormDetailPage({
-  params,
-}: {
-  params: {
-    id: string;
-  };
-}) {
+async function FormDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const form = await GetFormById(Number(id));
   if (!form) {
-    throw new Error("form not found");
+    throw new Error("Form not found");
   }
 
   const { visits, submissions } = form;
 
-  let submissionRate = 0;
-
-  if (visits > 0) {
-    submissionRate = (submissions / visits) * 100;
-  }
-
+  const submissionRate = visits > 0 ? (submissions / visits) * 100 : 0;
   const bounceRate = 100 - submissionRate;
 
   return (
@@ -54,7 +43,7 @@ async function FormDetailPage({
           title="Total visits"
           icon={<LuView className="text-blue-600" />}
           helperText="All time form visits"
-          value={visits.toLocaleString() || ""}
+          value={visits.toLocaleString()}
           loading={false}
           className="shadow-md shadow-blue-600"
         />
@@ -63,7 +52,7 @@ async function FormDetailPage({
           title="Total submissions"
           icon={<FaWpforms className="text-yellow-600" />}
           helperText="All time form submissions"
-          value={submissions.toLocaleString() || ""}
+          value={submissions.toLocaleString()}
           loading={false}
           className="shadow-md shadow-yellow-600"
         />
@@ -72,7 +61,7 @@ async function FormDetailPage({
           title="Submission rate"
           icon={<HiCursorClick className="text-green-600" />}
           helperText="Visits that result in form submission"
-          value={submissionRate.toLocaleString() + "%" || ""}
+          value={`${submissionRate.toFixed(2)}%`}
           loading={false}
           className="shadow-md shadow-green-600"
         />
@@ -80,8 +69,8 @@ async function FormDetailPage({
         <StatsCard
           title="Bounce rate"
           icon={<TbArrowBounce className="text-red-600" />}
-          helperText="Visits that leaves without interacting"
-          value={bounceRate.toLocaleString() + "%" || ""}
+          helperText="Visits that leave without interacting"
+          value={`${bounceRate.toFixed(2)}%`}
           loading={false}
           className="shadow-md shadow-red-600"
         />
@@ -96,53 +85,31 @@ async function FormDetailPage({
 
 export default FormDetailPage;
 
-type Row = { [key: string]: string } & {
-  submittedAt: Date;
-};
+type Row = { [key: string]: string } & { submittedAt: Date };
 
 async function SubmissionsTable({ id }: { id: number }) {
   const form = await GetFormWithSubmissions(id);
 
   if (!form) {
-    throw new Error("form not found");
+    throw new Error("Form not found");
   }
 
   const formElements = JSON.parse(form.content) as FormElementInstance[];
-  const columns: {
-    id: string;
-    label: string;
-    required: boolean;
-    type: ElementsType;
-  }[] = [];
+  const columns = formElements
+    .filter((element) =>
+      ["TextField", "NumberField", "TextAreaField", "DateField", "SelectField", "CheckboxField"].includes(element.type)
+    )
+    .map((element) => ({
+      id: element.id,
+      label: element.extraAttributes?.label,
+      required: element.extraAttributes?.required,
+      type: element.type,
+    }));
 
-  formElements.forEach((element) => {
-    switch (element.type) {
-      case "TextField":
-      case "NumberField":
-      case "TextAreaField":
-      case "DateField":
-      case "SelectField":
-      case "CheckboxField":
-        columns.push({
-          id: element.id,
-          label: element.extraAttributes?.label,
-          required: element.extraAttributes?.required,
-          type: element.type,
-        });
-        break;
-      default:
-        break;
-    }
-  });
-
-  const rows: Row[] = [];
-  form.FormSubmissions.forEach((submission) => {
-    const content = JSON.parse(submission.content);
-    rows.push({
-      ...content,
-      submittedAt: submission.createdAt,
-    });
-  });
+  const rows: Row[] = form.FormSubmissions.map((submission) => ({
+    ...JSON.parse(submission.content),
+    submittedAt: submission.createdAt,
+  }));
 
   return (
     <>
@@ -156,7 +123,9 @@ async function SubmissionsTable({ id }: { id: number }) {
                   {column.label}
                 </TableHead>
               ))}
-              <TableHead className="text-muted-foreground text-right uppercase">Submitted at</TableHead>
+              <TableHead className="text-muted-foreground text-right uppercase">
+                Submitted at
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -184,13 +153,13 @@ function RowCell({ type, value }: { type: ElementsType; value: string }) {
 
   switch (type) {
     case "DateField":
-      if (!value) break;
-      const date = new Date(value);
-      node = <Badge variant={"outline"}>{format(date, "dd/MM/yyyy")}</Badge>;
+      if (value) {
+        const date = new Date(value);
+        node = <Badge variant="outline">{format(date, "dd/MM/yyyy")}</Badge>;
+      }
       break;
     case "CheckboxField":
-      const checked = value === "true";
-      node = <Checkbox checked={checked} disabled />;
+      node = <Checkbox checked={value === "true"} disabled />;
       break;
   }
 
